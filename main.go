@@ -56,19 +56,17 @@ func markAsSent(id string) {
 	_, _ = mongoColl.InsertOne(ctx, bson.M{"msg_id": id, "at": time.Now()})
 }
 
-// --- مددگار فنکشنز ---
 func extractOTP(msg string) string {
 	re := regexp.MustCompile(`\b\d{3,4}[-\s]?\d{3,4}\b|\b\d{4,8}\b`)
 	return re.FindString(msg)
 }
 
-// نمبر ہائیڈ کرنے والا فنکشن
 func maskPhoneNumber(phone string) string {
 	if len(phone) < 6 {
 		return phone
 	}
-	// پہلے 3 ہندسے + ••• + آخری 2 ہندسے
-	return fmt.Sprintf("%s•••%s", phone[:3], phone[len(phone)-2:])
+
+	return fmt.Sprintf("%s•••%s", phone[:3], phone[len(phone)-4:])
 }
 
 func cleanCountryName(name string) string {
@@ -78,7 +76,6 @@ func cleanCountryName(name string) string {
 	return "Unknown"
 }
 
-// --- مین مانیٹرنگ لوپ ---
 func checkOTPs(cli *whatsmeow.Client) {
 	for i, url := range Config.OTPApiURLs {
 		apiIdx := i + 1
@@ -123,21 +120,21 @@ func checkOTPs(cli *whatsmeow.Client) {
 				cFlag, _ := GetCountryWithFlag(cleanCountry)
 				otpCode := extractOTP(fullMsg)
 				
-				// نمبر کو ہائیڈ کرنا
+		
 				maskedPhone := maskPhoneNumber(phone)
 				
 				flatMsg := strings.ReplaceAll(strings.ReplaceAll(fullMsg, "\n", " "), "\r", "")
 
-				// نمبر اور او ٹی پی کو بولڈ (*) کر دیا گیا ہے
+			
 				messageBody := fmt.Sprintf("✨ *%s | %s Message %d* ⚡\n\n"+
 					"> *Time:* %s\n"+
 					"> *Country:* %s %s\n"+
-					"  *Number:* *%s*\n"+
+					"   *Number:* *%s*\n"+
 					"> *Service:* %s\n"+
-					"  *OTP:* *%s*\n\n"+
+					"   *OTP:* *%s*\n\n"+
 					"> *Join For Numbers:* \n"+
-					"> https://chat.whatsapp.com/EbaJKbt5J2T6pgENIeFFht\n"+
-					"> https://chat.whatsapp.com/L0Qk2ifxRFU3fduGA45osD\n\n"+
+					"> 1 https://chat.whatsapp.com/EbaJKbt5J2T6pgENIeFFht\n\n"+
+					"> 2 https://chat.whatsapp.com/L0Qk2ifxRFU3fduGA45osD\n\n"+
 					"*Full Message:*\n"+
 					"%s\n\n"+
 					"> © Developed by Nothing Is Impossible",
