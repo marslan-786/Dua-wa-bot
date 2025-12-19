@@ -18,7 +18,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
-	waLog "go.mau.fi/whatsmeow/util/log" // waLog کے نام سے امپورٹ کیا
+	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -136,12 +136,12 @@ func main() {
 	// لیٹسٹ ورژن کے مطابق لاگر سیٹ اپ
 	dbLog := waLog.Stdout("Database", "INFO", true)
 	
-	// sqlstore.New اب context مانگتا ہے (want: context.Context, string, string, waLog.Logger)
-	container, err := sqlstore.New("postgres", dbURL, dbLog)
+	// فکسڈ: شروع میں context.Background() ایڈ کر دیا گیا ہے
+	container, err := sqlstore.New(context.Background(), "postgres", dbURL, dbLog)
 	if err != nil { panic(err) }
 	
-	// GetFirstDevice اب context مانگتا ہے (want: context.Context)
-	deviceStore, err := container.GetFirstDevice()
+	// فکسڈ: GetFirstDevice میں context.Background() ایڈ کر دیا گیا ہے
+	deviceStore, err := container.GetFirstDevice(context.Background())
 	if err != nil { panic(err) }
 
 	clientLog := waLog.Stdout("Client", "INFO", true)
@@ -155,7 +155,7 @@ func main() {
 		fmt.Println("⏳ Requesting Pairing Code for:", Config.OwnerNumber)
 		time.Sleep(3 * time.Second)
 		
-		// PairPhone اب context اور PairClientType مانگتا ہے
+		// فکسڈ: PairPhone میں context.Background() ایڈ کر دیا گیا ہے
 		code, err := client.PairPhone(context.Background(), Config.OwnerNumber, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
 		if err != nil {
 			fmt.Println("Pairing Error:", err)
