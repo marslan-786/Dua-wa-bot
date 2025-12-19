@@ -18,7 +18,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
-	"go.mau.fi/whatsmeow/util/log"
+	waLog "go.mau.fi/whatsmeow/util/log" // waLog کے نام سے امپورٹ کیا
 	"google.golang.org/protobuf/proto"
 )
 
@@ -134,16 +134,18 @@ func main() {
 	}
 
 	// لیٹسٹ ورژن کے مطابق لاگر سیٹ اپ
-	dbLog := log.Stdout("Database", "INFO", true)
-	// sqlstore.New اب context مانگتا ہے
+	dbLog := waLog.Stdout("Database", "INFO", true)
+	
+	// sqlstore.New اب context مانگتا ہے (want: context.Context, string, string, waLog.Logger)
 	container, err := sqlstore.New("postgres", dbURL, dbLog)
 	if err != nil { panic(err) }
 	
-	// GetFirstDevice اب context مانگتا ہے
+	// GetFirstDevice اب context مانگتا ہے (want: context.Context)
 	deviceStore, err := container.GetFirstDevice()
 	if err != nil { panic(err) }
 
-	client = whatsmeow.NewClient(deviceStore, log.Stdout("Client", "INFO", true))
+	clientLog := waLog.Stdout("Client", "INFO", true)
+	client = whatsmeow.NewClient(deviceStore, clientLog)
 	client.AddEventHandler(eventHandler)
 
 	if client.Store.ID == nil {
@@ -153,8 +155,8 @@ func main() {
 		fmt.Println("⏳ Requesting Pairing Code for:", Config.OwnerNumber)
 		time.Sleep(3 * time.Second)
 		
-		// PairCode اب PairPhone بن چکا ہے
-		code, err := client.PairPhone(Config.OwnerNumber, true, whatsmeow.PairCodeMethodChrome, "Chrome (Linux)")
+		// PairPhone اب context اور PairClientType مانگتا ہے
+		code, err := client.PairPhone(context.Background(), Config.OwnerNumber, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
 		if err != nil {
 			fmt.Println("Pairing Error:", err)
 			return
