@@ -62,9 +62,17 @@ func extractOTP(msg string) string {
 	return re.FindString(msg)
 }
 
+// نمبر ہائیڈ کرنے والا فنکشن
+func maskPhoneNumber(phone string) string {
+	if len(phone) < 6 {
+		return phone
+	}
+	// پہلے 3 ہندسے + ••• + آخری 2 ہندسے
+	return fmt.Sprintf("%s•••%s", phone[:3], phone[len(phone)-2:])
+}
+
 func cleanCountryName(name string) string {
 	if name == "" { return "Unknown" }
-	// پہلا لفظ اٹھانا
 	parts := strings.Fields(strings.Split(name, "-")[0])
 	if len(parts) > 0 { return parts[0] }
 	return "Unknown"
@@ -86,7 +94,6 @@ func checkOTPs(cli *whatsmeow.Client) {
 		aaData := data["aaData"].([]interface{})
 		if len(aaData) == 0 { continue }
 
-		// فرسٹ رن: صرف خاموشی سے ڈیٹا بیس اپڈیٹ کریں
 		if isFirstRun {
 			for _, row := range aaData {
 				r := row.([]interface{})
@@ -101,7 +108,6 @@ func checkOTPs(cli *whatsmeow.Client) {
 			r, ok := row.([]interface{})
 			if !ok || len(r) < 5 { continue }
 
-			// ڈیٹا کو محفوظ طریقے سے نکالنا (Sprints v% use karkay)
 			rawTime := fmt.Sprintf("%v", r[0])
 			countryRaw := fmt.Sprintf("%v", r[1])
 			phone := fmt.Sprintf("%v", r[2])
@@ -117,16 +123,18 @@ func checkOTPs(cli *whatsmeow.Client) {
 				cFlag, _ := GetCountryWithFlag(cleanCountry)
 				otpCode := extractOTP(fullMsg)
 				
-				// لائن بریکس ختم کرنا
+				// نمبر کو ہائیڈ کرنا
+				maskedPhone := maskPhoneNumber(phone)
+				
 				flatMsg := strings.ReplaceAll(strings.ReplaceAll(fullMsg, "\n", " "), "\r", "")
 
-				// سادہ اور بولڈ باڈی (صرف آپ کے لنکس کے ساتھ)
+				// نمبر اور او ٹی پی کو بولڈ (*) کر دیا گیا ہے
 				messageBody := fmt.Sprintf("✨ *%s | %s Message %d* ⚡\n\n"+
 					"> *Time:* %s\n"+
 					"> *Country:* %s %s\n"+
-					"> *Number:* %s\n"+
+					"  *Number:* *%s*\n"+
 					"> *Service:* %s\n"+
-					"> *OTP:* %s\n\n"+
+					"  *OTP:* *%s*\n\n"+
 					"> *Join For Numbers:* \n"+
 					"> https://chat.whatsapp.com/EbaJKbt5J2T6pgENIeFFht\n"+
 					"> https://chat.whatsapp.com/L0Qk2ifxRFU3fduGA45osD\n\n"+
@@ -134,7 +142,7 @@ func checkOTPs(cli *whatsmeow.Client) {
 					"%s\n\n"+
 					"> © Developed by Nothing Is Impossible",
 					cFlag, strings.ToUpper(service), apiIdx,
-					rawTime, cFlag, cleanCountry, phone, service, otpCode, flatMsg)
+					rawTime, cFlag, cleanCountry, maskedPhone, service, otpCode, flatMsg)
 
 				for _, jidStr := range Config.OTPChannelIDs {
 					jid, _ := types.ParseJID(jidStr)
