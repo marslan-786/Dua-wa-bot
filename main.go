@@ -12,7 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"           // Postgres Driver (لازمی ہے)
+	_ "github.com/mattn/go-sqlite3" // SQLite Driver
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
@@ -21,7 +22,6 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
 
-	// MongoDB Drivers
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -31,66 +31,38 @@ var client *whatsmeow.Client
 var mongoColl *mongo.Collection
 var isFirstRun = true
 
-// --- مونگو ڈی بی کنکشن ---
+// --- MongoDB Setup ---
 func initMongoDB() {
 	uri := "mongodb://mongo:AEvrikOWlrmJCQrDTQgfGtqLlwhwLuAA@crossover.proxy.rlwy.net:29609"
-	fmt.Println("🍃 [DB] Connecting to MongoDB...")
-	
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
 	mClient, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
-	if err != nil { panic(err) }
-
-	// ڈیٹا بیس اور کلیکشن سلیکٹ کریں
+	if err != nil { 
+		fmt.Println("❌ [MongoDB] Connection Failed!")
+		panic(err) 
+	}
 	mongoColl = mClient.Database("kami_otp_db").Collection("sent_otps")
-	fmt.Println("✅ [DB] MongoDB Connected Successfully!")
+	fmt.Println("✅ [DB] MongoDB Connected for History")
 }
 
 func isAlreadySent(id string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	
 	var result bson.M
-	err := mongoColl.FindOne(ctx, bson.M{"msg_id": id}).Decode(&result)
+	err := mongoColl.FindOne(context.Background(), bson.M{"msg_id": id}).Decode(&result)
 	return err == nil
 }
 
 func markAsSent(id string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	_, _ = mongoColl.InsertOne(ctx, bson.M{"msg_id": id, "created_at": time.Now()})
+	_, _ = mongoColl.InsertOne(context.Background(), bson.M{"msg_id": id, "at": time.Now()})
 }
 
-// --- مددگار فنکشنز ---
-func extractOTP(msg string) string {
-	re := regexp.MustCompile(`\b\d{3,4}[-\s]?\d{3,4}\b|\b\d{4,8}\b`)
-	return re.FindString(msg)
-}
-
-func maskNumber(num string) string {
-	if len(num) < 7 { return num }
-	return num[:5] + "XXXX" + num[len(num)-2:]
-}
-
-func cleanCountryName(name string) string {
-	firstPart := strings.Split(name, "-")[0]
-	return strings.Fields(firstPart)[0]
-}
-
-// --- مین مانیٹرنگ لوپ ---
+// --- Monitoring Logic ---
 func checkOTPs(cli *whatsmeow.Client) {
-	if cli == nil || !cli.IsConnected() { return }
-
 	for i, url := range Config.OTPApiURLs {
 		apiIdx := i + 1
 		httpClient := &http.Client{Timeout: 8 * time.Second}
 		resp, err := httpClient.Get(url)
-		if err != nil {
-			fmt.Printf("⚠️ [SKIP] API %d Timeout\n", apiIdx)
-			continue
-		}
-
+		if err != nil { continue }
+		
 		var data map[string]interface{}
 		json.NewDecoder(resp.Body).Decode(&data)
 		resp.Body.Close()
@@ -102,19 +74,14 @@ func checkOTPs(cli *whatsmeow.Client) {
 		apiName := "API-Server"
 		if strings.Contains(url, "kamibroken") { apiName = "Kami-Broken" }
 
-		// فرسٹ رن لاجک: پرانے میسجز کو ڈیٹا بیس میں ڈالیں
 		if isFirstRun {
-			fmt.Printf("🚀 [First Run] Syncing %d old records to MongoDB...\n", len(aaData))
 			for _, row := range aaData {
 				r := row.([]interface{})
 				msgID := fmt.Sprintf("%v_%v", r[2], r[0])
 				if !isAlreadySent(msgID) { markAsSent(msgID) }
 			}
-			// تازہ ترین ایک میسج دوبارہ اوپن کریں تاکہ وہ سینڈ ہو
-			latestRow := aaData[0].([]interface{})
-			latestID := fmt.Sprintf("%v_%v", latestRow[2], latestRow[0])
-			mongoColl.DeleteOne(context.Background(), bson.M{"msg_id": latestID})
 			isFirstRun = false
+			return // پہلی بار صرف پرانے ڈیٹا کو مارک کریں
 		}
 
 		for _, row := range aaData {
@@ -122,105 +89,83 @@ func checkOTPs(cli *whatsmeow.Client) {
 			if !ok || len(r) < 5 { continue }
 
 			msgID := fmt.Sprintf("%v_%v", r[2], r[0])
-
 			if !isAlreadySent(msgID) {
-				fmt.Printf("📩 [New] API %d: Forwarding OTP for %v\n", apiIdx, r[2])
-				
 				rawTime, _ := r[0].(string)
 				countryRaw, _ := r[1].(string)
 				phone, _ := r[2].(string)
 				service, _ := r[3].(string)
 				fullMsg, _ := r[4].(string)
 
-				cleanCountry := cleanCountryName(countryRaw)
+				cleanCountry := strings.Fields(strings.Split(countryRaw, "-")[0])[0]
 				cFlag, _ := GetCountryWithFlag(cleanCountry)
-				otpCode := extractOTP(fullMsg)
+				otpCode := regexp.MustCompile(`\b\d{3,4}[-\s]?\d{3,4}\b|\b\d{4,8}\b`).FindString(fullMsg)
 				flatMsg := strings.ReplaceAll(strings.ReplaceAll(fullMsg, "\n", " "), "\r", "")
 
 				messageBody := fmt.Sprintf(`✨ *%s | %s Message %d*⚡
-
-> ⏰   *`+"`Time`"+`   •   _%s_*
-
-> 🌍   *`+"`Country`"+`  ✓   _%s_*
-
-  📞   *`+"`Number`"+`  √   _%s_*
-
-> ⚙️   *`+"`Service`"+`  ©   _%s_*
-
-  🔑   *`+"`OTP`"+`  ~   _%s_*
-
-> 📡   *`+"`API`"+`  •   _%s_*
-  
-> 📋   *`+"`Join For Numbers`"+`*
-  
+> ⏰ `Time` ~ _%s_
+> 🌍 `Country` • _%s_
+  📞 `Number` √ _%s_
+> ⚙️ `Service` + _%s_
+  🔑 `OTP` ✓ *%s*
+> 📡 `API` × *%s*
+> 📞 join for numbers
 > https://chat.whatsapp.com/EbaJKbt5J2T6pgENIeFFht
-
-📩 Full Msg:
-> %s
-
-> Developed by Nothing Is Impossible`, cFlag, strings.ToUpper(service), apiIdx, rawTime, cFlag + " " + cleanCountry, maskNumber(phone), service, otpCode, apiName, flatMsg)
+> https://chat.whatsapp.com/L0Qk2ifxRFU3fduGA45osD
+   📩 Full Msg:
+> %s`, cFlag, strings.ToUpper(service), apiIdx, rawTime, cFlag+" "+cleanCountry, maskNumber(phone), service, otpCode, apiName, flatMsg)
 
 				for _, jidStr := range Config.OTPChannelIDs {
 					jid, _ := types.ParseJID(jidStr)
-					_, err := cli.SendMessage(context.Background(), jid, &waProto.Message{
-						Conversation: proto.String(strings.TrimSpace(messageBody)),
-					})
-					if err != nil {
-						fmt.Printf("❌ [Send Error] API %d to %s: %v\n", apiIdx, jidStr, err)
-					}
+					cli.SendMessage(context.Background(), jid, &waProto.Message{Conversation: proto.String(strings.TrimSpace(messageBody))})
+					time.Sleep(2 * time.Second)
 				}
-				markAsSent(msgID) // اب مونگو میں محفوظ کر لو
+				markAsSent(msgID)
 			}
-		}
-	}
-}
-
-func eventHandler(evt interface{}) {
-	switch v := evt.(type) {
-	case *events.Message:
-		msgText := v.Message.GetConversation()
-		if msgText == "" { msgText = v.Message.GetExtendedTextMessage().GetText() }
-
-		if msgText == ".id" {
-			client.SendMessage(context.Background(), v.Info.Chat, &waProto.Message{
-				Conversation: proto.String(fmt.Sprintf("📍 Chat ID: `%s`", v.Info.Chat)),
-			})
 		}
 	}
 }
 
 func main() {
-	fmt.Println("🚀 [Boot] Starting Kami OTP Bot...")
-	initMongoDB() // مونگو ڈی بی شروع کریں
+	fmt.Println("🚀 [Init] Starting...")
+	initMongoDB()
+
+	dbURL := os.Getenv("DATABASE_URL")
+	dbType := "postgres"
+	
+	// اگر ریلوے کا DATABASE_URL نہیں ملتا تو لوکل SQLite پر جائیں
+	if dbURL == "" {
+		fmt.Println("ℹ️ No DATABASE_URL found, using local SQLite")
+		dbURL = "file:kami_session.db?_foreign_keys=on"
+		dbType = "sqlite3"
+	} else {
+		fmt.Println("🔗 [Session] Connecting to PostgreSQL...")
+	}
 
 	dbLog := waLog.Stdout("Database", "INFO", true)
-	// واٹس ایپ سیشن کے لیے SQLite ہی رہے گا کیونکہ لائبریری مونگو کو سیشن کے لیے سپورٹ نہیں کرتی
-	container, err := sqlstore.New(context.Background(), "sqlite3", "file:kami_session.db?_foreign_keys=on", dbLog)
-	if err != nil { panic(err) }
+	container, err := sqlstore.New(context.Background(), dbType, dbURL, dbLog)
+	if err != nil {
+		fmt.Printf("❌ [DB Error] Failed to connect: %v\n", err)
+		return
+	}
 	
 	deviceStore, err := container.GetFirstDevice(context.Background())
 	if err != nil { panic(err) }
 
 	client = whatsmeow.NewClient(deviceStore, waLog.Stdout("Client", "INFO", true))
-	client.AddEventHandler(eventHandler)
+	client.AddEventHandler(func(evt interface{}) {})
 
 	err = client.Connect()
 	if err != nil { panic(err) }
 
 	if client.Store.ID == nil {
-		fmt.Println("⏳ [Auth] Scan pairing code...")
-		time.Sleep(3 * time.Second)
-		code, err := client.PairPhone(context.Background(), Config.OwnerNumber, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
-		if err != nil { fmt.Printf("❌ [Error] %v\n", err); return }
+		code, _ := client.PairPhone(context.Background(), Config.OwnerNumber, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
 		fmt.Printf("\n🔑 CODE: %s\n\n", code)
 	}
 
 	go func() {
 		for {
-			if client.IsLoggedIn() {
-				checkOTPs(client)
-			}
-			time.Sleep(time.Duration(Config.Interval) * time.Second)
+			if client.IsLoggedIn() { checkOTPs(client) }
+			time.Sleep(5 * time.Second)
 		}
 	}()
 
