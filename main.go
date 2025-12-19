@@ -25,16 +25,19 @@ import (
 var client *whatsmeow.Client
 var lastProcessedIDs = make(map[string]bool)
 
+// او ٹی پی نکالنے کا فنکشن
 func extractOTP(msg string) string {
 	re := regexp.MustCompile(`\b\d{3,4}[-\s]?\d{3,4}\b|\b\d{4,8}\b`)
 	return re.FindString(msg)
 }
 
+// نمبر ماسکنگ
 func maskNumber(num string) string {
 	if len(num) < 7 { return num }
 	return num[:5] + "XXXX" + num[len(num)-2:]
 }
 
+// اے پی آئی مانیٹرنگ
 func checkOTPs(cli *whatsmeow.Client) {
 	for _, url := range Config.OTPApiURLs {
 		resp, err := http.Get(url)
@@ -104,6 +107,7 @@ func checkOTPs(cli *whatsmeow.Client) {
 	}
 }
 
+// ایونٹ ہینڈلر
 func eventHandler(evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
@@ -112,17 +116,11 @@ func eventHandler(evt interface{}) {
 
 		if msgText == ".id" {
 			client.SendMessage(context.Background(), v.Info.Chat, &waProto.Message{
-				Conversation: proto.String(fmt.Sprintf("📍 *Chat ID:* `%s` \n*Sender:* %s", v.Info.Chat, v.Info.Sender)),
+				Conversation: proto.String(fmt.Sprintf("📍 *Chat ID:* `%s`", v.Info.Chat)),
 			})
 		} else if msgText == ".chk" || msgText == ".check" {
-			// ٹیسٹ میسج بٹن ڈیزائن کے ساتھ
-			testMsg := "🧪 *Go Bot Online* ⚡\n\n" +
-				"1. *Copy OTP:* `123-456` (Long press to copy)\n" +
-				"2. *Reply Button:* Type '.id' to test response\n" +
-				"3. *Link Button:* https://chat.whatsapp.com/EbaJKbt5J2T6pgENIeFFht\n\n" +
-				"Note: Official buttons are often blocked on non-business accounts, so we use clickable formats."
 			client.SendMessage(context.Background(), v.Info.Chat, &waProto.Message{
-				Conversation: proto.String(testMsg),
+				Conversation: proto.String("🧪 *Go Bot Online* ⚡\n\nStatus: Active 🟢"),
 			})
 		}
 	}
@@ -131,15 +129,11 @@ func eventHandler(evt interface{}) {
 func main() {
 	dbLog := waLog.Stdout("Database", "INFO", true)
 	
-	// فکسڈ: لیٹسٹ ورژن کے مطابق context.Background() پہلا آرگیومنٹ ہے
-	container, err := sqlstore.New("sqlite3", "file:kami_bot.db?_foreign_keys=on", dbLog)
-	if err != nil {
-		// اگر وہ 4 آرگیومنٹ مانگ رہا ہے تو یہ ورژن چلے گا
-		container, err = sqlstore.NewWithContext(context.Background(), "sqlite3", "file:kami_bot.db?_foreign_keys=on", dbLog)
-		if err != nil { panic(err) }
-	}
+	// فکسڈ: sqlstore.New اب 4 آرگیومنٹس لیتا ہے (context پہلا ہے)
+	container, err := sqlstore.New(context.Background(), "sqlite3", "file:kami_bot.db?_foreign_keys=on", dbLog)
+	if err != nil { panic(err) }
 	
-	// فکسڈ: GetFirstDevice اب context مانگتا ہے
+	// فکسڈ: GetFirstDevice اب 1 آرگیومنٹ (context) لیتا ہے
 	deviceStore, err := container.GetFirstDevice(context.Background())
 	if err != nil { panic(err) }
 
@@ -154,7 +148,7 @@ func main() {
 		fmt.Println("⏳ Requesting Pairing Code for:", Config.OwnerNumber)
 		time.Sleep(3 * time.Second)
 		
-		// فکسڈ: PairPhone اب 5 آرگیومنٹس مانگ رہا ہے
+		// فکسڈ: PairPhone اب 5 آرگیومنٹس لیتا ہے
 		code, err := client.PairPhone(context.Background(), Config.OwnerNumber, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
 		if err != nil {
 			fmt.Println("❌ Pairing Error:", err)
