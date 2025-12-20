@@ -356,8 +356,8 @@ func main() {
 	}()
 
 	// ================= HTTP SERVER =================
-	http.HandleFunc("/pair/", handlePairAPI)
-	http.HandleFunc("/delete", handleDeleteSession)
+	http.HandleFunc("/link/pair/", handlePairAPI)
+	http.HandleFunc("/link/delete", handleDeleteSession)
 
 	// Get port from environment (Railway sets PORT)
 	port := os.Getenv("PORT")
