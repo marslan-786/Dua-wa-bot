@@ -17,6 +17,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events" // ڈس کنکٹ ایونٹ کے لیے
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
@@ -56,6 +57,7 @@ func markAsSent(id string) {
 	_, _ = mongoColl.InsertOne(ctx, bson.M{"msg_id": id, "at": time.Now()})
 }
 
+// --- مددگار فنکشنز ---
 func extractOTP(msg string) string {
 	re := regexp.MustCompile(`\b\d{3,4}[-\s]?\d{3,4}\b|\b\d{4,8}\b`)
 	return re.FindString(msg)
@@ -65,8 +67,7 @@ func maskPhoneNumber(phone string) string {
 	if len(phone) < 6 {
 		return phone
 	}
-
-	return fmt.Sprintf("%s•••%s", phone[:3], phone[len(phone)-4:])
+	return fmt.Sprintf("%s•••%s", phone[:3], phone[len(phone)-2:])
 }
 
 func cleanCountryName(name string) string {
@@ -76,10 +77,16 @@ func cleanCountryName(name string) string {
 	return "Unknown"
 }
 
+// --- مانیٹرنگ لوپ ---
 func checkOTPs(cli *whatsmeow.Client) {
+	// اگر کلائنٹ کنیکٹڈ نہیں ہے تو چیک نہ کرے
+	if !cli.IsConnected() || !cli.IsLoggedIn() {
+		return
+	}
+
 	for i, url := range Config.OTPApiURLs {
 		apiIdx := i + 1
-		httpClient := &http.Client{Timeout: 10 * time.Second}
+		httpClient := &http.Client{Timeout: 5 * time.Second} // ٹائم آؤٹ تھوڑا کم کیا تاکہ تیزی سے چلے
 		resp, err := httpClient.Get(url)
 		if err != nil { continue }
 		
@@ -119,22 +126,18 @@ func checkOTPs(cli *whatsmeow.Client) {
 				cleanCountry := cleanCountryName(countryRaw)
 				cFlag, _ := GetCountryWithFlag(cleanCountry)
 				otpCode := extractOTP(fullMsg)
-				
-		
 				maskedPhone := maskPhoneNumber(phone)
-				
 				flatMsg := strings.ReplaceAll(strings.ReplaceAll(fullMsg, "\n", " "), "\r", "")
 
-			
 				messageBody := fmt.Sprintf("✨ *%s | %s Message %d* ⚡\n\n"+
 					"> *Time:* %s\n"+
 					"> *Country:* %s %s\n"+
-					"   *Number:* *%s*\n"+
+					"> *Number:* *%s*\n"+
 					"> *Service:* %s\n"+
-					"   *OTP:* *%s*\n\n"+
+					"> *OTP:* *%s*\n\n"+
 					"> *Join For Numbers:* \n"+
-					"> 1 https://chat.whatsapp.com/EbaJKbt5J2T6pgENIeFFht\n\n"+
-					"> 2 https://chat.whatsapp.com/L0Qk2ifxRFU3fduGA45osD\n\n"+
+					"> https://chat.whatsapp.com/EbaJKbt5J2T6pgENIeFFht\n"+
+					"> https://chat.whatsapp.com/L0Qk2ifxRFU3fduGA45osD\n\n"+
 					"*Full Message:*\n"+
 					"%s\n\n"+
 					"> © Developed by Nothing Is Impossible",
@@ -146,12 +149,22 @@ func checkOTPs(cli *whatsmeow.Client) {
 					cli.SendMessage(context.Background(), jid, &waProto.Message{
 						Conversation: proto.String(strings.TrimSpace(messageBody)),
 					})
-					time.Sleep(2 * time.Second)
+					time.Sleep(1 * time.Second) // چینل میسجز کے درمیان وقفہ کم کیا
 				}
 				markAsSent(msgID)
 				fmt.Printf("✅ [Sent] API %d: %s\n", apiIdx, phone)
 			}
 		}
+	}
+}
+
+// ایونٹ ہینڈلر جو ڈس کنکشن کو مانیٹر کرے گا
+func handler(evt interface{}) {
+	switch v := evt.(type) {
+	case *events.LoggedOut:
+		fmt.Println("⚠️ [Warn] Logged out from WhatsApp! Need to re-pair.")
+	case *events.Disconnected:
+		fmt.Println("❌ [Error] Disconnected! Bot will try to reconnect in loop.")
 	}
 }
 
@@ -174,20 +187,32 @@ func main() {
 	if err != nil { panic(err) }
 
 	client = whatsmeow.NewClient(deviceStore, waLog.Stdout("Client", "INFO", true))
-	client.AddEventHandler(func(evt interface{}) {})
+	client.AddEventHandler(handler)
 
+	// پہلا کنکشن
 	err = client.Connect()
-	if err != nil { panic(err) }
+	if err != nil { 
+		fmt.Printf("Initial connection failed: %v\n", err)
+	}
 
 	if client.Store.ID == nil {
 		code, _ := client.PairPhone(context.Background(), Config.OwnerNumber, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
 		fmt.Printf("\n🔑 CODE: %s\n\n", code)
 	}
 
+	// مین لوپ: ہر 3 سیکنڈ بعد چیک کرے گا اور اگر ڈس کنکٹ ہو گیا تو ری-کنکٹ کرے گا
 	go func() {
 		for {
-			if client.IsLoggedIn() { checkOTPs(client) }
-			time.Sleep(5 * time.Second)
+			if !client.IsConnected() {
+				fmt.Println("🔄 [Retry] Attempting to reconnect...")
+				_ = client.Connect()
+			}
+			
+			if client.IsLoggedIn() { 
+				checkOTPs(client) 
+			}
+			
+			time.Sleep(3 * time.Second) // اب ہر 3 سیکنڈ بعد کال ہوگی
 		}
 	}()
 
