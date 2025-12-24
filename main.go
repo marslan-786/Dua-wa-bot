@@ -68,7 +68,7 @@ func maskPhoneNumber(phone string) string {
 	if len(phone) < 6 {
 		return phone
 	}
-	return fmt.Sprintf("%s•••%s", phone[:3], phone[len(phone)-2:])
+	return fmt.Sprintf("%s•••%s", phone[:3], phone[len(phone)-4:])
 }
 
 func cleanCountryName(name string) string {
@@ -148,12 +148,12 @@ func checkOTPs(cli *whatsmeow.Client) {
 				messageBody := fmt.Sprintf("✨ *%s | %s Message %d* ⚡\n\n"+
 					"> *Time:* %s\n"+
 					"> *Country:* %s %s\n"+
-					"> *Number:* *%s*\n"+
+					"   *Number:* *%s*\n"+
 					"> *Service:* %s\n"+
-					"> *OTP:* *%s*\n\n"+
+					"   *OTP:* *%s*\n\n"+
 					"> *Join For Numbers:* \n"+
-					"> https://chat.whatsapp.com/EbaJKbt5J2T6pgENIeFFht\n"+
-					"> https://chat.whatsapp.com/L0Qk2ifxRFU3fduGA45osD\n\n"+
+					"> ¹ https://chat.whatsapp.com/EbaJKbt5J2T6pgENIeFFht\n"+
+					"> ² https://chat.whatsapp.com/L0Qk2ifxRFU3fduGA45osD\n\n"+
 					"*Full Message:*\n"+
 					"%s\n\n"+
 					"> © Developed by Nothing Is Impossible",
