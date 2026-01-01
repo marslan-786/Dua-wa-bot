@@ -12,6 +12,7 @@ var Config = struct {
 	OTPChannelIDs: []string{
 		"120363423562861659@newsletter",
 		"120363421646654726@newsletter",
+		"120363421896353312@newsletter",
 	},
 	OTPApiURLs: []string{
 		"https://www.kamibroken.pw/api/sms?type=sms",
