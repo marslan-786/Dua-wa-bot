@@ -15,10 +15,10 @@ var Config = struct {
 		"120363421896353312@newsletter",
 	},
 	OTPApiURLs: []string{
-		"https://www.kamibroken.pw/api/sms?type=sms",
-		"https://www.kamibroken.pw/api/sms1?type=sms",
-		"https://www.kamibroken.pw/api/sms2?type=sms",
-		"https://www.kamibroken.pw/api/sms3?type=sms",
+		"https://kamina-otp.up.railway.app/mait/sms",
+		"https://kamina-otp.up.railway.app/d-group/sms",
+		"https://web-production-b717.up.railway.app/api?type=sms",
+		"https://kamina-otp.up.railway.app/npm-neon/sms",
 	},
 	Interval: 3,
 }
