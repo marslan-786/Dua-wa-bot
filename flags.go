@@ -94,6 +94,7 @@ var flagMap = map[string]string{
 	"ireland": "🇮🇪",
 	"israel": "🇮🇱",
 	"italy": "🇮🇹",
+	"ivory": "🇨🇮",
 
 	"jamaica": "🇯🇲",
 	"japan": "🇯🇵",
@@ -115,7 +116,6 @@ var flagMap = map[string]string{
 	"liechtenstein": "🇱🇮",
 	"lithuania": "🇱🇹",
 	"luxembourg": "🇱🇺",
-	"lvory": "🇨🇮",
 
 	"madagascar": "🇲🇬",
 	"malawi": "🇲🇼",
@@ -201,7 +201,7 @@ func GetCountryWithFlag(countryName string) (string, string) {
 	cleanName := strings.ToLower(strings.Fields(countryName)[0])
 	flag, ok := flagMap[cleanName]
 	if !ok {
-		return "🫣", "🫣 " + countryName
+		return "🌐", "🌐 " + countryName
 	}
 	return flag, flag + " " + countryName
 }
