@@ -34,7 +34,7 @@ var isFirstRun = true
 
 // --- MongoDB Setup ---
 func initMongoDB() {
-	uri := "mongodb+srv://arslansalfi:786786aa@cluster0.yeycg3n.mongodb.net/?appName=Cluster0"
+	uri := "mongodb://mongo:ChdVBzAfqsdxgYSlkcyKnNMoEKJnlJlf@yamanote.proxy.rlwy.net:22558"
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	mClient, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
