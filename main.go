@@ -155,7 +155,7 @@ func checkOTPs(cli *whatsmeow.Client) {
 					"> ¹ https://chat.whatsapp.com/CHMuvcz9wS95cc5DaBA9zP\n"+
 					"*Full Message:*\n"+
 					"%s\n\n"+
-					"> © Developed by 𝙎𝙞𝙡𝙚𝙣𝙩 𝙃𝙖𝙘𝙠𝙚𝙧𝙨",
+					"> © Developed by Nothing Is Impossible",
 					cFlag, strings.ToUpper(service), apiIdx,
 					rawTime, cFlag, cleanCountry, maskedPhone, service, otpCode, flatMsg)
 
