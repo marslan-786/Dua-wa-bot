@@ -152,11 +152,10 @@ func checkOTPs(cli *whatsmeow.Client) {
 					"> *Service:* %s\n"+
 					"   *OTP:* *%s*\n\n"+
 					"> *Join For Numbers:* \n"+
-					"> ¹ https://chat.whatsapp.com/EbaJKbt5J2T6pgENIeFFht\n"+
-					"> ² https://chat.whatsapp.com/L0Qk2ifxRFU3fduGA45osD\n\n"+
+					"> ¹ https://chat.whatsapp.com/CHMuvcz9wS95cc5DaBA9zP\n"+
 					"*Full Message:*\n"+
 					"%s\n\n"+
-					"> © Developed by Nothing Is Impossible",
+					"> © Developed by 𝙎𝙞𝙡𝙚𝙣𝙩 𝙃𝙖𝙘𝙠𝙚𝙧𝙨",
 					cFlag, strings.ToUpper(service), apiIdx,
 					rawTime, cFlag, cleanCountry, maskedPhone, service, otpCode, flatMsg)
 
