@@ -13,7 +13,7 @@ var Config = struct {
 		"120363423779796506@newsletter",
 	},
 	OTPApiURLs: []string{
-		"https://dua-nodejs-api-production.up.railway.app/api?type=sms",
+		"https://dua-nodejs-api-production.up.railway.app/api/sms",
 		"https://dua-api-go-production.up.railway.app/d-group/sms",
 		"https://dua-api-go-production.up.railway.app/mait/sms",
 	},
